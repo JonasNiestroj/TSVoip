@@ -1,3 +1,14 @@
+import { WebGroup } from 'netflux'
+
+/*interface ISocketIOMessage {
+    data: ISocketIOData
+}
+
+interface ISocketIOData {
+    data: string
+}
+*/
+
 class MediaRecorder{
     private readonly context: AudioContext
     private readonly bufferSize: number
@@ -5,7 +16,8 @@ class MediaRecorder{
     private source: MediaStreamAudioSourceNode
     private script: ScriptProcessorNode
     private analyser: AnalyserNode
-    private buffers: AudioBuffer[]
+    // private socket: SocketIOClient.Socket
+    private webGroup: WebGroup
     
     // onstart callback
     public onstart: () => void
@@ -16,15 +28,45 @@ class MediaRecorder{
     // ondata callback
     public ondata: (buffer: AudioBuffer) => void
 
-    constructor(audioContext: AudioContext, bufferSize = 16384){
+    constructor(audioContext: AudioContext, socket: SocketIOClient.Socket){
         this.context = audioContext
-        this.bufferSize = bufferSize
-        this.buffers = []
+        this.bufferSize = 16384
+        // this.socket = socket
+        this.webGroup = new WebGroup()
+
+        this.webGroup.onMemberJoin = id => {
+            console.log("Member joined")
+        }
+
+        this.webGroup.onMessage = (id, data) => {
+            console.log("new")
+            const floatArray = new Float32Array(JSON.parse(data.toString()))
+            const buffer = this.context.createBuffer(1, 16384, 48000)
+            buffer.copyToChannel(floatArray, 0, 0)
+            const source = that.context.createBufferSource()
+            source.buffer = buffer
+            source.connect(that.context.destination)
+            source.start()
+        }
+
+        this.webGroup.join('buaergäijahsdf')
 
         this.onstart = () => console.log("recording started")
         this.onstop = () => console.log("recording stopped")
         this.ondata = data => console.log("data available")
 
+        const that = this
+
+        /*this.socket.on('d', (data: ISocketIOMessage) => {
+            console.log("new")
+            const floatArray = new Float32Array(JSON.parse(data.data.data))
+            const buffer = this.context.createBuffer(1, 16384, 48000)
+            buffer.copyToChannel(floatArray, 0, 0)
+            const source = that.context.createBufferSource()
+            source.buffer = buffer
+            source.connect(that.context.destination)
+            source.start()
+        })*/
     }
 
     public start(){
@@ -45,11 +87,11 @@ class MediaRecorder{
         const analyser = this.context.createAnalyser()
         script.onaudioprocess = event => {
             const inputBuffer = event.inputBuffer
-            const source = this.context.createBufferSource()
-            source.buffer = inputBuffer
-            source.connect(this.context.destination)
-            source.start()
-            this.buffers.push(inputBuffer)
+            const floatArray = inputBuffer.getChannelData(0)
+            if(!location.href.endsWith("mute")){
+                this.webGroup.send(JSON.stringify(Array.from(floatArray)))
+                // this.socket.emit('data', { data: JSON.stringify(Array.from(floatArray))})
+            }
         }
 
         analyser.smoothingTimeConstant = 1
@@ -75,16 +117,6 @@ class MediaRecorder{
 
         this.onstop()
     }
-
-    /*private exportData(buffers: Float32Array){
-        const totalLength = buffers.reduce((acc, buffer) => acc + this.bufferSize, 0)
-        const audioBuffer = this.context.createBuffer(1, totalLength, this.context.sampleRate)
-        const outChannel = audioBuffer.getChannelData(0)
-
-        outChannel.set(buffers, 0)
-
-        this.ondata(audioBuffer)
-    }*/
 }
 
 export default MediaRecorder

@@ -11,5 +11,4 @@ ReactDOM.render(
   document.getElementById('root') as HTMLElement
 );
 registerServiceWorker();
-Connect();
-new MediaRecorder(new AudioContext()).start()
+new MediaRecorder(new AudioContext(), Connect()).start()
